@@ -1,0 +1,630 @@
+import pandas as pd
+import numpy as np
+from sklearn.metrics import accuracy_score #works
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import cross_val_score
+from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import LabelEncoder
+#from sklearn.ensemble import RandomForestClassifier
+from imblearn.over_sampling import SMOTE 
+from sklearn.svm import SVC
+from collections import Counter #for Smote, 
+import tensorflow.compat.v1 as tf
+from sklearn import linear_model
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import SGDRegressor
+from sklearn.neural_network import MLPRegressor
+from vecstack import stacking
+import warnings
+warnings.filterwarnings("ignore")
+
+# Reading the file
+trainfile = r'/gdrive/My Drive/CIS 508/Team_assgn/train.csv'
+train_data = pd.read_csv(trainfile)
+
+testfile = r'/gdrive/My Drive/CIS 508/Team_assgn/test.csv'
+test_data = pd.read_csv(testfile)
+
+#Seperating Prediction (y) from independent variable (x)
+x_train = train_data.drop(["revenue"],axis=1)
+y_train = train_data["revenue"]
+
+# convert dateto diff in x_train
+import time
+from datetime import datetime as dt
+x_diff = []
+for x in x_train["Open Date"]:
+  diff = dt.now() - dt.strptime(x, "%m/%d/%Y")
+  x_diff.append(int(diff.days)/1000)
+x_diff = pd.DataFrame(x_diff,columns=["Diff"])
+x_train = pd.concat([x_train,x_diff],axis=1)
+# Drop the Open date
+x_train =x_train.drop("Open Date",axis=1)
+# DO the same for test set
+import time
+from datetime import datetime as dt
+a_diff = []
+for x in test_data["Open Date"]:
+  diff = dt.now() - dt.strptime(x, "%m/%d/%Y")
+  a_diff.append(int(diff.days)/1000)
+
+a_diff = pd.DataFrame(a_diff,columns=["Diff"])
+x_test = pd.concat([test_data,a_diff],axis=1)
+
+# drop open date from x_test
+x_test = x_test.drop("Open Date",axis=1)
+#concatenate test and train data set
+concat_set = pd.concat([x_train,x_test],keys=[0,1])
+
+missing_data = concat_set.isnull().sum().reset_index()
+missing_data.columns = ["Field","Data_missing"]
+missing_data.head(10)
+missing_data  = missing_data.loc[missing_data["Data_missing"]>0]
+missing_data = missing_data.sort_values(by="Data_missing")
+print(missing_data)
+
+# onehot encode Object variables
+dummy = ["City","City Group", "Type"]
+concat_set = pd.get_dummies(concat_set,columns=dummy)
+concat_set = concat_set.drop("Id",axis=1)
+
+#Seperate train and test
+x_train = concat_set.xs(0)
+x_test = concat_set.xs(1)
+
+#Train test split
+X_train,a_test,Y_train,b_test = train_test_split(x_train,y_train,test_size=0.10,random_state=42)
+
+#default Individual model:
+# Random Forest Regressor
+cls= RandomForestRegressor()
+cls.fit(x_train,y_train)
+r_predict_train = cls.predict(x_train)
+r_predict_test = cls.predict(a_test)
+r_predict_final = cls.predict(x_test)
+
+
+# Report Random Forest Regressor
+mean_squared_error(y_train,r_predict_train)
+print("RMSE (training) for Random Forest:{0:10f}".format(mean_squared_error(y_train,r_predict_train)))
+mean_squared_error(b_test,r_predict_test)
+print("RMSE (Test Data) for Random Forest:{0:10f}".format(mean_squared_error(b_test,r_predict_test)))
+
+# Predictions
+r_predict_final = pd.DataFrame(r_predict_final,columns=["Prediction"])
+r_predict_final.head()
+test_file = pd.concat([test_data,r_predict_final],axis=1)
+test_file.head()
+
+# Decision Tree Regressor
+clf = DecisionTreeRegressor()
+clf.fit(x_train, y_train)
+clf_predict_train = clf.predict(x_train)
+clf_predict_test = clf.predict(a_test)
+clf_predict_final = clf.predict(x_test)
+
+# Report Decision Tree Regressor
+mean_squared_error(y_train,clf_predict_train)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,clf_predict_train)))
+mean_squared_error(b_test,clf_predict_test)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,clf_predict_test)))
+
+# Predictions
+clf_predict_final = pd.DataFrame(clf_predict_final,columns=["Prediction"])
+clf_predict_final.head()
+test_file = pd.concat([test_data,clf_predict_final],axis=1)
+test_file.head()
+
+# Model with Gradient Descent
+sgd = SGDRegressor()
+sgd.fit(x_train,y_train)
+sgd_predict_train = sgd.predict(x_train)
+sgd_predict_test = sgd.predict(a_test)
+sgd_predict_final = sgd.predict(x_test)
+
+# Report gradient descent
+mean_squared_error(y_train,sgd_predict_train)
+print("RMSE (training) for Descent:{0:10f}".format(mean_squared_error(y_train,sgd_predict_train)))
+mean_squared_error(b_test,sgd_predict_test)
+print("RMSE (Test Data) for Descent:{0:10f}".format(mean_squared_error(b_test,sgd_predict_test)))
+
+# Predictions
+sgd_predict_final = pd.DataFrame(sgd_predict_final,columns=["Prediction"])
+sgd_predict_final.head()
+test_file = pd.concat([test_data,sgd_predict_final],axis=1)
+test_file.head()
+
+# SVR - Support Vector Regressor  
+from sklearn.svm import SVR, LinearSVR
+svr = SVR()
+svr.fit(x_train,y_train)
+predict2_svr_train = svr.predict(x_train)
+predict2_svr_test = svr.predict(a_test)
+predict_svr_final = svr.predict(x_test)
+# Report SVR
+mean_squared_error(y_train,predict2_svr_train)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict2_svr_train)))
+mean_squared_error(b_test,predict2_svr_test)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,predict2_svr_test)))
+
+# Predictions
+predict_svr_final = pd.DataFrame(predict_svr_final,columns=["Prediction"])
+predict_svr_final.head()
+test_file = pd.concat([test_data,predict_svr_final],axis=1)
+test_file.head()
+
+# MLP Regressor
+mlp = MLPRegressor()
+mlp.fit(x_train,y_train)
+predict_mlp_train = mlp.predict(x_train)
+predict_mlp_test = mlp.predict(a_test)
+predict_mlp_final = mlp.predict(x_test)
+
+# Report MLP Regressor
+mean_squared_error(y_train,predict_mlp_train)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict_mlp_train)))
+mean_squared_error(b_test,predict_mlp_test)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,predict_mlp_test)))
+
+# Predictions
+predict_final = pd.DataFrame(predict_mlp_final,columns=["Prediction"])
+predict_final.head()
+test_file = pd.concat([test_data,predict_final],axis=1)
+test_file.head()
+
+
+#Hyperparameter Tunning for each Individual Model:
+# Hyper parameter tunning for MLP Regressor
+mlp = MLPRegressor()
+parameter_mpl = {
+    'hidden_layer_sizes': [(50,50,50), (50,100,50), (100,)],
+    'activation': ['tanh', 'relu'],
+    'solver': ['sgd', 'adam'],
+    'alpha': [0.0001, 0.05],
+    'learning_rate': ['constant','adaptive'],
+}
+mlp_random = RandomizedSearchCV(mlp,parameter_mpl,n_jobs=-1,cv=3)
+mlp_random.fit(x_train,y_train)
+mlp_bestparam = mlp_random.best_params_
+print(mlp_bestparam)
+mlp = MLPRegressor(**mlp_bestparam)
+mlp.fit(x_train,y_train)
+predict3_mlp_train = mlp.predict(x_train)
+predict3_mlp_test = mlp.predict(a_test)
+predict_mlp_final = mlp.predict(x_test)
+# Report MLP with hyper parameter tunning
+mean_squared_error(y_train,predict3_mlp_train)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict3_mlp_train)))
+mean_squared_error(b_test,predict3_mlp_test)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,predict3_mlp_test)))
+# Predictions
+predict_final = pd.DataFrame(predict_mlp_final,columns=["Prediction"])
+predict_final.head()
+test_file = pd.concat([test_data,predict_final],axis=1)
+test_file.head()
+
+# Hyper parameter tunning for Random Forest
+parameters={ 'n_estimators': range(10,300,10),'min_samples_split' : range(10,200,10),'max_depth': range(1,300,10)}
+rfc = RandomForestRegressor()
+rfc_random = RandomizedSearchCV(rfc,parameters,n_iter=10,cv=5)
+rfc_random.fit(x_train,y_train)
+bestparam_rfc_random = rfc_random.best_params_
+print(bestparam_rfc_random)
+rfg = RandomForestRegressor(**bestparam_rfc_random)
+rfg.fit(x_train,y_train)
+predict_hrantrain = rfg.predict(x_train)
+predict_hrantest = rfg.predict(a_test)
+predict_hranfinal = rfg.predict(x_test)
+# Report Random Forest with hyper parameter tunning
+mean_squared_error(y_train,predict_hrantrain)
+print("RMSE (training) for Random Forest:{0:10f}".format(mean_squared_error(y_train,predict_hrantrain)))
+mean_squared_error(b_test,predict_hrantest)
+print("RMSE (Test Data) for Random Forest:{0:10f}".format(mean_squared_error(b_test,predict_hrantest)))
+# Predictions
+predict_test = pd.DataFrame(predict_hranfinal,columns=["Prediction"])
+predict_test.head()
+test_file = pd.concat([test_data,predict_test],axis=1)
+test_file.head()
+
+# Hyper parameter tuning for decision tree
+parameters={'min_samples_split': range(20,100,20),'max_depth': range(5,30,5)}
+clf = DecisionTreeRegressor()
+clf_random = RandomizedSearchCV(clf, parameters, n_iter=10, cv=5)
+clf_random.fit(x_train, y_train)
+bestparam_clf_random = clf_random.best_params_
+print(bestparam_clf_random)
+
+clg = DecisionTreeRegressor(**bestparam_clf_random)
+clg.fit(x_train,y_train)
+predict_hdttrain = clg.predict(x_train)
+predict_hdttest = clg.predict(a_test)
+predict_hdtfinal = clg.predict(x_test)
+
+# Report decision tree with hyper parameter tunning
+mean_squared_error(y_train,predict_hdttrain)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict_hdttrain)))
+mean_squared_error(b_test,predict_hdttest)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,predict_hdttest)))
+
+# Predictions
+predict_hdttest = pd.DataFrame(predict_hdtfinal,columns=["Prediction"])
+predict_hdttest.head()
+test_file = pd.concat([test_data,predict_hdttest],axis=1)
+test_file.head()
+
+# Hyper parameter tuning for SVR
+parameters={'C':[1.0,1.5,2.0],'degree':[3,4,5], 'epsilon':[0.1,0.2,0.3]}
+svr = SVR()
+svr_random = RandomizedSearchCV(svr, parameters, n_iter=10, cv=5)
+svr_random.fit(x_train, y_train)
+bestparam_svr_random = svr_random.best_params_
+print(bestparam_svr_random)
+
+svg = SVR(**bestparam_svr_random)
+svg.fit(x_train,y_train)
+predict_hsvrtrain = svg.predict(x_train)
+predict_hsvrtest = svg.predict(a_test)
+predict_hsvefinal =svg.predict(x_test)
+
+# Report SVR with hyper parameter tunning
+mean_squared_error(y_train,predict_hsvrtrain)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict_hsvrtrain)))
+mean_squared_error(b_test,predict_hsvrtest)
+print("RMSE (Test Data) for Decision Tree:{0:10f}".format(mean_squared_error(b_test,predict_hsvrtest)))
+
+# Predictions
+predict_hsvrtest = pd.DataFrame(predict_hsvefinal,columns=["Prediction"])
+predict_hsvrtest.head()
+test_file = pd.concat([test_data,predict_hsvrtest],axis=1)
+test_file.head()
+
+sgg = SGDRegressor(**bestparam_sgd_random)
+sgg.fit(x_train,y_train)
+predict_hsgdtrain = sgg.predict(x_train)
+predict_hsgdtest = sgg.predict(a_test)
+predict_hsgdfinal = sgg.predict(x_test)
+
+# Report Gradient Descent with hyper parameter tunning
+mean_squared_error(y_train,predict_hsgdtrain)
+print("RMSE (training) for Descent:{0:10f}".format(mean_squared_error(y_train,predict_hsgdtrain)))
+mean_squared_error(b_test,predict_hsgdtest)
+print("RMSE (Test Data) for Descent:{0:10f}".format(mean_squared_error(b_test,predict_hsgdtest)))
+
+# Predictions
+predict_hsgdtest = pd.DataFrame(predict_hsgdfinal,columns=["Prediction"])
+predict_hsgdtest.head()
+test_file = pd.concat([test_data,predict_hsgdtest],axis=1)
+test_file.head()
+
+#STACKING
+# Stacking models
+models = [RandomForestRegressor(**bestparam_rfc_random),GradientBoostingRegressor(),MLPRegressor(),SVR()]
+s_train, s_test = stacking(models,
+                           x_train,y_train,x_test,
+                           regression= True,
+                           mode = 'oof_pred_bag',
+                           needs_proba=False,
+                           save_dir= None,
+                           n_folds=4,
+                           verbose=2)
+                          
+# Choose the best model for prediction - in this case SVR
+sv1 = SVR()
+svr = sv1.fit(s_train,y_train)
+predict_train = sv1.predict(s_train)
+predict_test = sv1.predict(s_test)
+mean_squared_error(y_train,predict_train)
+print("RMSE (training) for Decision Tree:{0:10f}".format(mean_squared_error(y_train,predict_train)))
+# Predictions
+predict_test = pd.DataFrame(predict_test,columns=["Prediction"])
+predict_test.head()
+
+# Stacking - Hyper parameter tuning for GRADIENT BOOSTING
+parameters={'n_estimators':[100,150,200,250,300],'min_samples_split':[5,10,15,20,25,30]}
+boos = GradientBoostingRegressor()
+boos_random = RandomizedSearchCV(boos, parameters, n_iter=10, cv=4)
+boos_random.fit(s_train, y_train)
+bestparam_boos_random = boos_random.best_params_
+print(bestparam_boos_random)
+boos = GradientBoostingRegressor(**bestparam_boos_random)
+boos.fit(s_train,y_train)
+predict_boostrain = boos.predict(s_train)
+predict_boostest = boos.predict(s_test)
+mean_squared_error(y_train,predict_boostrain)
+print("RMSE (training) for Hyper parameter tuning for GRADIENT BOOSTING:{0:10f}".format(mean_squared_error(y_train,predict_boostrain)))
+
+# Predictions
+predict_boostest = pd.DataFrame(predict_boostest,columns=["Prediction"])
+predict_boostest.head()
+test_file = pd.concat([test_data,predict_boostest],axis=1)
+test_file.head()
+
+ #Hyper parameter tuning for SVR
+parameters={'C':[1.0,1.5,2.0],'degree':[3,4,5], 'epsilon':[0.1,0.2,0.3]}
+svr = SVR()
+svr_random = RandomizedSearchCV(svr, parameters, n_iter=10, cv=5)
+svr_random.fit(s_train, y_train)
+bestparam_svr_random = svr_random.best_params_
+print(bestparam_svr_random)
+
+svrh = SVR(**bestparam_svr_random)
+svrh.fit(s_train,y_train)
+predict_svrhtrain = svrh.predict(s_train)
+predict_svrhtest = svrh.predict(s_test)
+predict_svrfinal = svrh.predict(s_test)
+
+mean_squared_error(y_train,predict_svrhtrain)
+print("RMSE (training) for Hyper parameter tuning for GRADIENT BOOSTING:{0:10f}".format(mean_squared_error(y_train,predict_svrhtrain)))
+
+# Predictions
+predict_boostest = pd.DataFrame(predict_svrfinal,columns=["Prediction"])
+predict_boostest.head()
+test_file = pd.concat([test_data,predict_boostest],axis=1)
+test_file.head()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+
+
+
+
+
+
+
+
+
+
+
